@@ -1,0 +1,11 @@
+{
+  "name": "registro-de-picks",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PWA para registrar y auditar apuestas deportivas a mano. Sin build, sin servidor.",
+  "scripts": {
+    "test": "node --test",
+    "start": "node tools/servir.js"
+  },
+  "license": "UNLICENSED"
+}
