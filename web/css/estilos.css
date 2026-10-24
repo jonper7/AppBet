@@ -415,3 +415,11 @@ select option { background: #121620; color: var(--texto); }
 @media (max-width: 380px) { .tabla__fila { grid-template-columns: minmax(0, 1.4fr) .4fr 1fr .9fr .9fr; font-size: .78rem; gap: 5px; } }
 
 body.demo .vista { padding-top: calc(54px + var(--zona-arriba)); }
+
+.fichas--campo { margin: 0; padding: 0 0 2px; gap: 6px; flex-wrap: wrap; overflow: visible; }
+.ficha--mini { padding: 6px 12px; min-height: 32px; font-size: .78rem; }
+.catalogo { display: grid; gap: 2px; }
+.catalogo__fila { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--borde); }
+.catalogo__fila:first-child { border-top: 0; }
+.catalogo__nombre { font-weight: 600; overflow-wrap: anywhere; }
+.catalogo__acc { display: flex; gap: 6px; }

@@ -1,6 +1,6 @@
 /* Service worker: precarga todo y sirve sin conexión.
    IMPORTANTE: sube el número de VERSION en cada cambio de archivos para que los teléfonos se actualicen. */
-const VERSION = 'picks-v11';
+const VERSION = 'picks-v12';
 const ARCHIVOS = [
   './', 'index.html', 'manifest.json',
   'css/estilos.css',

@@ -57,6 +57,9 @@ APP.vistas.ajustes = {
           </form>
         </section>
 
+        ${this.bloqueCatalogo('casas', 'Casas de apuestas', DATOS.catalogoDe(datos, 'casas'), 'Aún no hay casas. Se guardan solas al registrar una apuesta, o añádelas aquí.')}
+        ${this.bloqueCatalogo('ligas', 'Ligas', DATOS.catalogoDe(datos, 'ligas'), 'Aún no hay ligas. Se guardan solas al registrar una apuesta, o añádelas aquí.')}
+
         ${levantados.length ? `<section class="bloque"><div class="bloque__cab"><div class="bloque__tit">Bloqueos levantados</div></div><div class="reglas">${bloqueos}</div></section>` : ''}
 
         <section class="bloque">
@@ -88,6 +91,22 @@ APP.vistas.ajustes = {
 
     el.querySelector('#form-config').addEventListener('submit', (e) => { e.preventDefault(); this.guardar(e.target, siguiente); });
     el.querySelector('#archivo-copia').addEventListener('change', (e) => this.importar(e.target));
+  },
+
+  /** Lista editable de casas o ligas: lo que se ofrece como fichas al registrar una apuesta. */
+  bloqueCatalogo(tipo, titulo, lista, vacio) {
+    const filas = lista.map((n, i) => `
+      <div class="catalogo__fila"><span class="catalogo__nombre">${APP.esc(n)}</span>
+        <span class="catalogo__acc">
+          <button class="mini" type="button" data-accion="catalogo_ren" data-tipo="${tipo}" data-i="${i}">Renombrar</button>
+          <button class="mini mini--rojo" type="button" data-accion="catalogo_del" data-tipo="${tipo}" data-i="${i}">Quitar</button>
+        </span></div>`).join('');
+    return `<section class="bloque">
+      <div class="bloque__cab"><div><div class="bloque__tit">${titulo}</div><div class="bloque__sub">${lista.length} ${lista.length === 1 ? 'guardada' : 'guardadas'} · se ofrecen al registrar</div></div>
+        <button class="mini mini--principal" type="button" data-accion="catalogo_add" data-tipo="${tipo}">+ Añadir</button></div>
+      <div class="catalogo">${filas || `<div class="vacio vacio--lista">${vacio}</div>`}</div>
+      <p class="bloque__sub" style="margin-top:12px">Las que escribas al registrar se guardan solas. Renombrar o quitar solo cambia esta lista: las apuestas ya registradas conservan el nombre con que se guardaron.</p>
+    </section>`;
   },
 
   /** Lee el archivo elegido y añade a la app lo que le falte (nunca pisa apuestas existentes). */
@@ -166,4 +185,56 @@ APP.acciones.importar_copia = () => {
 APP.acciones.descargar_respaldo = async (el) => {
   const r = APP.estado.datos.ajustes[el.dataset.ranura];
   if (r) await APP.entregarCopia(r.copia, `picks-respaldo-${r.fecha}.json`);
+};
+
+/** Acciones de las listas de casas y ligas. */
+APP.catalogo = {
+  etiqueta: (tipo) => (tipo === 'casas' ? 'casa' : 'liga'),
+  actual: (tipo) => DATOS.catalogoDe(APP.estado.datos, tipo),
+  /** Valida que el nombre no exista ya (ignorando mayúsculas y tildes), salvo el elemento que se edita. */
+  repetido: (tipo, nombre, omitir) => APP.catalogo.actual(tipo).some((x, i) => i !== omitir && DATOS.plegar(x) === DATOS.plegar(nombre)),
+  async guardar(tipo, lista, mensaje) {
+    try {
+      await APP.db.guardarCatalogo(tipo, lista);
+      await APP.refrescar();
+      APP.aviso(mensaje);
+    } catch (e) { APP.aviso(e.message); }
+  },
+};
+
+APP.acciones.catalogo_add = async (el) => {
+  const tipo = el.dataset.tipo;
+  const v = await DIALOGO.formulario({
+    titulo: `Añadir ${APP.catalogo.etiqueta(tipo)}`,
+    campos: [{ id: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true }],
+    aceptar: 'Añadir',
+    validar: (x) => (APP.catalogo.repetido(tipo, x.nombre, -1) ? { nombre: 'Ya está en la lista.' } : null),
+  });
+  if (v) await APP.catalogo.guardar(tipo, [...APP.catalogo.actual(tipo), v.nombre], 'Añadida a la lista');
+};
+
+APP.acciones.catalogo_ren = async (el) => {
+  const tipo = el.dataset.tipo;
+  const i = Number(el.dataset.i);
+  const lista = APP.catalogo.actual(tipo);
+  const v = await DIALOGO.formulario({
+    titulo: `Renombrar ${APP.catalogo.etiqueta(tipo)}`,
+    mensaje: 'Solo cambia el nombre en la lista. Las apuestas ya registradas no se modifican.',
+    campos: [{ id: 'nombre', etiqueta: 'Nombre', tipo: 'texto', valor: lista[i], requerido: true }],
+    aceptar: 'Guardar',
+    validar: (x) => (APP.catalogo.repetido(tipo, x.nombre, i) ? { nombre: 'Ya está en la lista.' } : null),
+  });
+  if (v) await APP.catalogo.guardar(tipo, lista.map((n, k) => (k === i ? v.nombre : n)), 'Nombre actualizado');
+};
+
+APP.acciones.catalogo_del = async (el) => {
+  const tipo = el.dataset.tipo;
+  const i = Number(el.dataset.i);
+  const lista = APP.catalogo.actual(tipo);
+  const ok = await DIALOGO.confirmar({
+    titulo: `¿Quitar «${lista[i]}»?`,
+    mensaje: 'Se quita solo de la lista que se ofrece al registrar. Las apuestas ya registradas no cambian, y si vuelves a escribirla se guardará de nuevo.',
+    aceptar: 'Quitar', peligro: true,
+  });
+  if (ok) await APP.catalogo.guardar(tipo, lista.filter((_, k) => k !== i), 'Quitada de la lista');
 };

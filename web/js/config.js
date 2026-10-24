@@ -1,6 +1,6 @@
 /* config.js — constantes de la interfaz (los parámetros de reglas viven en la base, no aquí). */
 const CONFIG = {
-  VERSION: '1.1.0-fase2',
+  VERSION: '1.2.0',
   MERCADOS: ['1X2', 'doble oportunidad', 'goles', 'BTTS', 'córners', 'tiros', 'otro'],
   FUENTES: ['análisis propio', 'Claude', 'tipster', 'intuición'],
   EMOCIONES: ['tranquilo', 'aburrido', 'tras pérdida', 'otro'],

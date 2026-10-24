@@ -5,6 +5,22 @@ const HOJA_APUESTA = {
   validando: false, // se activa al pulsar Registrar: entonces se muestran también los campos faltantes
   CODIGOS_CAMPO: ['casa', 'stake', 'fuente', 'estado_emocional', 'confianza', 'partido', 'liga', 'fecha_partido', 'mercado', 'seleccion', 'cuota', 'prob_propia', 'selecciones'],
 
+  /** Fichas con las casas o ligas guardadas: un toque rellena el campo. */
+  fichas(lista, campo) {
+    if (!lista || !lista.length) return '';
+    return `<div class="campo--completo fichas fichas--campo" data-chips="${campo}">${lista.map((n) => `<button type="button" class="ficha ficha--mini" data-valor="${APP.esc(n)}">${APP.esc(n)}</button>`).join('')}</div>`;
+  },
+
+  /** Resalta la ficha que coincide con lo escrito en el campo. */
+  marcarFichas() {
+    const f = this.form;
+    const plegar = (t) => String(t || '').trim().replace(/\s+/g, ' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    f.querySelectorAll('[data-chips]').forEach((caja) => {
+      const actual = plegar(f.elements[caja.dataset.chips].value);
+      caja.querySelectorAll('.ficha').forEach((b) => b.classList.toggle('on', actual !== '' && plegar(b.dataset.valor) === actual));
+    });
+  },
+
   bloqueSeleccion(i, ligas) {
     const n = i + 1;
     const mercados = CONFIG.MERCADOS.map((m) => `<option value="${APP.esc(m)}">${APP.esc(m)}</option>`).join('');
@@ -14,6 +30,7 @@ const HOJA_APUESTA = {
         <label class="campo campo--completo"><span>Partido</span><input name="partido_${i}" placeholder="Local vs Visitante" autocomplete="off"></label>
         <label class="campo"><span>Liga</span><input name="liga_${i}" list="dl-ligas" autocomplete="off"></label>
         <label class="campo"><span>Fecha del partido</span><input type="datetime-local" name="fecha_partido_${i}"></label>
+        ${this.fichas(ligas, `liga_${i}`)}
         <label class="campo"><span>Mercado</span><select name="mercado_${i}">${mercados}</select></label>
         <label class="campo"><span>Línea <small class="campo__ayuda">(opcional)</small></span><input name="linea_${i}" placeholder="2.5" inputmode="decimal" autocomplete="off"></label>
         <label class="campo campo--completo"><span>Selección</span><input name="seleccion_${i}" placeholder="Local, Más de 2.5, Ambos marcan…" autocomplete="off"></label>
@@ -26,8 +43,8 @@ const HOJA_APUESTA = {
 
   abrir() {
     const d = APP.estado.datos;
-    const casas = APP.unicos(d.apuestas.map((a) => a.casa));
-    const ligas = APP.unicos(d.selecciones.map((s) => s.liga));
+    const casas = DATOS.catalogoDe(d, 'casas');
+    const ligas = DATOS.catalogoDe(d, 'ligas');
     const opciones = (lista) => lista.map((x) => `<option value="${APP.esc(x)}">${APP.esc(x)}</option>`).join('');
     const radiosConfianza = [1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="confianza" value="${n}"${n === 3 ? ' checked' : ''}>${n}</label>`).join('');
     this.validando = false;
@@ -42,10 +59,11 @@ const HOJA_APUESTA = {
           <label><input type="radio" name="tipo" value="simple" checked>Simple</label>
           <label><input type="radio" name="tipo" value="doble">Doble</label>
         </div>
-        ${this.bloqueSeleccion(0)}${this.bloqueSeleccion(1)}
+        ${this.bloqueSeleccion(0, ligas)}${this.bloqueSeleccion(1, ligas)}
         <div class="campos">
           <label class="campo"><span>Casa</span><input name="casa" list="dl-casas" autocomplete="off"></label>
           <label class="campo"><span>Stake <small class="campo__ayuda" id="ap-stake-modo">(automático)</small></span><input name="stake" placeholder="0,00" inputmode="decimal" autocomplete="off"></label>
+          ${this.fichas(casas, 'casa')}
           <div class="campo campo--completo" style="gap:6px;margin-top:-4px">
             <span class="campo__ayuda" id="ap-stake-ayuda"></span>
             <button class="mini mini--suave" type="button" data-stake-auto hidden style="justify-self:start;padding-left:0">Volver al stake automático</button>
@@ -78,6 +96,13 @@ const HOJA_APUESTA = {
     f.addEventListener('input', (e) => {
       if (e.target.name === 'stake') this.stakeManual = true;
       this.actualizar();
+    });
+    f.addEventListener('click', (e) => {
+      const ficha = e.target.closest('[data-chips] .ficha');
+      if (!ficha) return;
+      const campo = f.elements[ficha.closest('[data-chips]').dataset.chips];
+      campo.value = ficha.dataset.valor;
+      campo.dispatchEvent(new Event('input', { bubbles: true }));
     });
     el.querySelector('[data-stake-auto]').addEventListener('click', () => { this.stakeManual = false; this.actualizar(); });
     f.addEventListener('change', () => {
@@ -177,6 +202,7 @@ const HOJA_APUESTA = {
   },
 
   actualizar() {
+    this.marcarFichas();
     this.autoStake();
     const b = this.leer();
     const ev = REGLAS.evaluarApuesta(b, this.contexto());

@@ -94,6 +94,34 @@
     };
   }
 
+  // ---------- Catálogos de casas y ligas ----------
+
+  const TIPOS_CATALOGO = ['casas', 'ligas'];
+  const MAX_ELEMENTOS_CATALOGO = 200;
+  const MAX_LARGO_NOMBRE = 60;
+
+  /** Para comparar nombres sin importar mayúsculas, tildes ni espacios sobrantes. */
+  const plegar = (t) => String(t || '').trim().replace(/\s+/g, ' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const limpiar = (t) => String(t || '').trim().replace(/\s+/g, ' ');
+  const ordenar = (lista) => [...lista].sort((a, b) => a.localeCompare(b, 'es'));
+
+  /** Añade los valores nuevos (sin repetir, ignorando mayúsculas y tildes). */
+  function unirNombres(base, extra) {
+    const salida = [...base];
+    extra.map(limpiar).filter(Boolean).forEach((n) => {
+      if (!salida.some((x) => plegar(x) === plegar(n))) salida.push(n);
+    });
+    return ordenar(salida);
+  }
+
+  /** Lista de casas o ligas: la guardada o, si aún no hay, la que sale del historial. */
+  function catalogoDe(datos, tipo) {
+    const guardado = datos.ajustes[`catalogo_${tipo}`];
+    if (Array.isArray(guardado)) return guardado;
+    const origen = tipo === 'casas' ? datos.apuestas.map((a) => a.casa) : datos.selecciones.map((s) => s.liga);
+    return unirNombres([], origen);
+  }
+
   // ---------- Instancia ----------
 
   function crear(adaptador) {
@@ -165,6 +193,18 @@
       const evaluacion = R.evaluarApuesta(b, contexto(datos, ahora));
       if (!evaluacion.ok) throw new ErrorReglas(evaluacion.errores);
 
+      // Casas y ligas: se usa la escritura de la lista si ya existe (p. ej. «laliga» → «LaLiga») y lo nuevo se guarda.
+      const casas = catalogoDe(datos, 'casas');
+      const ligas = catalogoDe(datos, 'ligas');
+      const canonico = (lista, v) => lista.find((x) => plegar(x) === plegar(v)) || limpiar(v);
+      b.casa = canonico(casas, b.casa);
+      b.selecciones.forEach((s) => { s.liga = canonico(ligas, s.liga); });
+      const casasNuevas = unirNombres(casas, [b.casa]);
+      const ligasNuevas = unirNombres(ligas, b.selecciones.map((s) => s.liga));
+      const itemsCatalogo = [];
+      if (casasNuevas.length !== casas.length) itemsCatalogo.push(['ajustes', { clave: 'catalogo_casas', valor: casasNuevas }]);
+      if (ligasNuevas.length !== ligas.length) itemsCatalogo.push(['ajustes', { clave: 'catalogo_ligas', valor: ligasNuevas }]);
+
       const id = uuid();
       const apuesta = {
         id, fecha_hora: ahora, casa: b.casa,
@@ -182,8 +222,34 @@
       await adaptador.guardar([
         ['apuestas', apuesta], ...selecciones.map((s) => ['selecciones', s]),
         ...(b.captura ? [['capturas', { id, data: b.captura }]] : []),
+        ...itemsCatalogo,
       ]);
       return { apuesta, selecciones, avisos: evaluacion.avisos };
+    }
+
+    /**
+     * Guarda la lista editada de casas o ligas (la que se ofrece al registrar).
+     * No toca apuestas ya registradas: conservan el nombre con que se guardaron.
+     */
+    async function guardarCatalogo(tipo, lista, ahora = reloj()) {
+      if (!TIPOS_CATALOGO.includes(tipo)) throw new Error('Lista desconocida.');
+      const limpia = [];
+      (lista || []).forEach((n) => {
+        const nombre = limpiar(n);
+        if (!nombre) return;
+        if (nombre.length > MAX_LARGO_NOMBRE) throw new Error(`Cada nombre admite hasta ${MAX_LARGO_NOMBRE} caracteres.`);
+        if (limpia.some((x) => plegar(x) === plegar(nombre))) throw new Error(`«${nombre}» está repetido en la lista.`);
+        limpia.push(nombre);
+      });
+      if (limpia.length > MAX_ELEMENTOS_CATALOGO) throw new Error(`La lista admite hasta ${MAX_ELEMENTOS_CATALOGO} elementos.`);
+      const datos = await cargar();
+      const antes = catalogoDe(datos, tipo);
+      const despues = ordenar(limpia);
+      await adaptador.guardar([
+        ['ajustes', { clave: `catalogo_${tipo}`, valor: despues }],
+        entradaLog('catalogo', ahora, { lista: tipo, antes, despues }),
+      ]);
+      return despues;
     }
 
     /**
@@ -379,7 +445,11 @@
         })),
         depositos,
         log_cambios: log,
-        ajustes: { overrides: aj.overrides || [], cierres: aj.cierres || [] },
+        ajustes: {
+          overrides: aj.overrides || [], cierres: aj.cierres || [],
+          ...(Array.isArray(aj.catalogo_casas) ? { catalogo_casas: aj.catalogo_casas } : {}),
+          ...(Array.isArray(aj.catalogo_ligas) ? { catalogo_ligas: aj.catalogo_ligas } : {}),
+        },
         capturas,
       };
     }
@@ -429,6 +499,18 @@
       const nuevosCierres = lista(aj.cierres).filter((c) => !actuales.cierres.some((x) => x.mes === c.mes));
       if (nuevosCierres.length) items.push(['ajustes', { clave: 'cierres', valor: [...actuales.cierres, ...nuevosCierres] }]);
 
+      // listas de casas y ligas: se unen las de la app, las de la copia y los nombres de las apuestas importadas
+      const antes = await cargar();
+      const nombresImportados = {
+        casas: lista(copia.apuestas).map((a) => a.casa),
+        ligas: lista(copia.apuestas).flatMap((a) => lista(a.selecciones).map((s) => s.liga)),
+      };
+      TIPOS_CATALOGO.forEach((tipo) => {
+        const actual = catalogoDe(antes, tipo);
+        const unida = unirNombres(actual, [...lista(aj[`catalogo_${tipo}`]), ...nombresImportados[tipo]]);
+        if (unida.length !== actual.length) items.push(['ajustes', { clave: `catalogo_${tipo}`, valor: unida }]);
+      });
+
       if (items.length) await adaptador.guardar(items);
       return cuenta;
     }
@@ -475,12 +557,12 @@
     }
 
     return {
-      obtenerCaptura, guardarAjuste, exportarCopia, importarCopia, respaldarSiToca, listarRespaldos, cerrarMes,
+      guardarCatalogo, obtenerCaptura, guardarAjuste, exportarCopia, importarCopia, respaldarSiToca, listarRespaldos, cerrarMes,
       cargar, contexto, asegurarConfig, registrarApuesta, liquidar, revertirLiquidacion,
       actualizarSeleccion, registrarCorreccion, guardarConfig, levantarBloqueo, reactivarBloqueo,
       registrarDeposito,
     };
   }
 
-  return { crear, adaptadorMemoria, adaptadorIDB, ahoraLocal, ErrorReglas, ALMACENES };
+  return { crear, adaptadorMemoria, adaptadorIDB, ahoraLocal, ErrorReglas, ALMACENES, catalogoDe, plegar };
 });

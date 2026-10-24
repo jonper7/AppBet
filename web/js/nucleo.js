@@ -160,6 +160,12 @@ APP.textoLog = (l) => {
     case 'config': return `Parámetros guardados para ${APP.nombreMes(l.vigente_desde)}`;
     case 'bloqueo_levantado': return `Bloqueo «${l.regla === 'perdida_mensual' ? 'pérdida mensual' : 'apuestas por día'}» levantado (${l.periodo})`;
     case 'bloqueo_reactivado': return `Bloqueo «${l.regla === 'perdida_mensual' ? 'pérdida mensual' : 'apuestas por día'}» reactivado (${l.periodo})`;
+    case 'catalogo': {
+      const quitados = l.antes.filter((x) => !l.despues.includes(x));
+      const nuevos = l.despues.filter((x) => !l.antes.includes(x));
+      const que = l.lista === 'casas' ? 'casas de apuestas' : 'ligas';
+      return `Lista de ${que} editada${nuevos.length ? ` · nuevas: ${nuevos.join(', ')}` : ''}${quitados.length ? ` · quitadas: ${quitados.join(', ')}` : ''}`;
+    }
     case 'cierre_mes': return `Mes ${APP.nombreMes(l.mes)} cerrado`;
     default: return l.tipo;
   }

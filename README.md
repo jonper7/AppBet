@@ -9,6 +9,7 @@ Es una PWA solo para el teléfono: HTML + CSS + JavaScript sin build, datos en e
 
 - **Parámetros** editables solo para el mes siguiente (banca 100, stake máx. 10 %, pérdida máx. 30 %, 2 selecciones, cuota mínima 2,00, 2 apuestas/día).
 - **Registrar** una apuesta simple o doble, con cuota total, retorno, probabilidad implícita y EV calculados en vivo, avisos de reglas y confirmación antes de guardar.
+  - **Casas y ligas guardadas:** lo que escribes al registrar se guarda solo y la próxima vez lo eliges con un toque (fichas bajo el campo). Si escribes «laliga» y ya existe «LaLiga», usa la escritura guardada, así los reportes no se parten en duplicados. Las listas se editan en **Ajustes** (añadir, renombrar, quitar); renombrar o quitar solo cambia la lista, no las apuestas ya registradas.
   - **El stake se calcula solo** (nunca más que el stake máximo): si pones tu probabilidad propia y hay ventaja (EV > 0), usa **¼ Kelly** sobre la banca actual; si no, usa **confianza/5 × stake máximo**. Puedes escribir otro valor a mano y volver al automático con un toque.
 - **Liquidar** a un toque (ganada / perdida / anulada, con «Deshacer»), cashout (pide el retorno) y doble «por selección».
 - **Inicio**: banca actual, pérdida del mes frente al límite (barra), stake máximo de hoy, apuestas de hoy, racha, yield, acierto, drawdown y semáforo de reglas.
