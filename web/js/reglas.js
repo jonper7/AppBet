@@ -17,6 +17,7 @@
     perdidas_seguidas_pausa: 2,
   });
 
+  const LIMITE_SELECCIONES = 10; // tope absoluto de selecciones en una apuesta, aunque se levante la regla
   const CUOTA_MINIMA_VALIDA = 1.01; // la cuota debe ser estrictamente mayor
   const UMBRAL_ALERTA = 0.75;
 
@@ -52,7 +53,7 @@
     const l = num('perdida_max_pct');
     if (!(l > 0 && l <= 100)) e.push('La pérdida máxima mensual debe estar entre 0 y 100 %.');
     const m = num('max_selecciones');
-    if (!(Number.isInteger(m) && m >= 1 && m <= 2)) e.push('Las selecciones por combinada deben ser 1 o 2.');
+    if (!(Number.isInteger(m) && m >= 1 && m <= LIMITE_SELECCIONES)) e.push(`Las selecciones por combinada deben ser un entero entre 1 y ${LIMITE_SELECCIONES}.`);
     if (!(num('cuota_min') >= CUOTA_MINIMA_VALIDA)) e.push(`La cuota total mínima debe ser al menos ${num2(CUOTA_MINIMA_VALIDA)}.`);
     if (!(Number.isInteger(num('max_apuestas_dia')) && num('max_apuestas_dia') >= 1)) e.push('Las apuestas por día deben ser un entero de 1 o más.');
     if (!(Number.isInteger(num('perdidas_seguidas_pausa')) && num('perdidas_seguidas_pausa') >= 1)) e.push('Las pérdidas seguidas para sugerir pausa deben ser un entero de 1 o más.');
@@ -84,11 +85,12 @@
     const topeDia = apuestasHoy >= cfg.max_apuestas_dia;
     const perdidaLevantada = overrideActivo(ctx.overrides, 'perdida_mensual', mes);
     const diaLevantado = overrideActivo(ctx.overrides, 'max_apuestas_dia', dia);
+    const seleccionesLevantado = overrideActivo(ctx.overrides, 'max_selecciones', dia);
     const enJuego = C.redondear2(apuestas.filter((a) => a.estado === 'pendiente').reduce((s, a) => s + a.stake, 0));
     const bloqueado = (topePerdida && !perdidaLevantada) || (topeDia && !diaLevantado);
     return {
       mes, dia, gananciaMes, perdidaMes, limitePerdida, usoPerdida, stakeMax, apuestasHoy,
-      racha, depositosMes, topePerdida, topeDia, perdidaLevantada, diaLevantado, enJuego,
+      racha, depositosMes, topePerdida, topeDia, perdidaLevantada, diaLevantado, seleccionesLevantado, enJuego,
       bancaActual: C.redondear2(cfg.banca_mensual + gananciaMes),
       bloqueado,
       stakeMaximoHoy: bloqueado ? 0 : stakeMax,
@@ -176,9 +178,19 @@
     // 4. Combinada: máximo de selecciones, partidos distintos, cuota total mínima.
     if (selecciones.length === 0) {
       error('selecciones', 'Agrega al menos una selección.');
-    } else if (selecciones.length > cfg.max_selecciones) {
-      error('max_selecciones', `Combinada rechazada: máximo ${cfg.max_selecciones} selecciones (tienes ${selecciones.length}).`);
-    } else if (selecciones.length >= 2) {
+    } else {
+      if (selecciones.length > LIMITE_SELECCIONES) {
+        error('limite_selecciones', `Una apuesta admite como máximo ${LIMITE_SELECCIONES} selecciones (tienes ${selecciones.length}).`);
+      } else if (selecciones.length > cfg.max_selecciones) {
+        // Más selecciones que tu regla: se bloquea, y se puede levantar con aviso solo para hoy.
+        if (sit.seleccionesLevantado) {
+          aviso('selecciones_levantado', `Límite de selecciones levantado hoy: llevas ${selecciones.length} (tu regla es ${cfg.max_selecciones}). Cada selección extra baja mucho la probabilidad de acertar.`);
+        } else {
+          error('max_selecciones', `Combinada rechazada: tu regla permite como máximo ${cfg.max_selecciones} selecciones (tienes ${selecciones.length}).`, true);
+        }
+      }
+    }
+    if (selecciones.length >= 2) {
       const partidos = selecciones.map((s) => normalizar(s.partido)).filter(Boolean);
       if (new Set(partidos).size < partidos.length) {
         error('partidos_repetidos', 'Combinada rechazada: las selecciones deben ser de partidos distintos.');
@@ -231,7 +243,10 @@
       s.topeDia ? (s.diaLevantado ? 'ambar' : 'rojo') : 'verde',
       `${s.apuestasHoy} de ${cfg.max_apuestas_dia}`);
     item('stake_max', 'Stake máximo', 'verde', `${dinero(s.stakeMax)} por apuesta (${cfg.stake_max_pct} % de ${dinero(cfg.banca_mensual)})`);
-    item('combinada', 'Combinada', 'verde', `Hasta ${cfg.max_selecciones} selecciones, partidos distintos, cuota total ≥ ${num2(cfg.cuota_min)}`);
+    item('combinada', 'Combinada', s.seleccionesLevantado ? 'ambar' : 'verde',
+      s.seleccionesLevantado
+        ? `Límite de ${cfg.max_selecciones} selecciones levantado hoy (máx. ${LIMITE_SELECCIONES})`
+        : `Hasta ${cfg.max_selecciones} ${cfg.max_selecciones === 1 ? 'selección' : 'selecciones'}, partidos distintos, cuota total ≥ ${num2(cfg.cuota_min)}`);
     const pausa = s.racha.tipo === 'perdida' && s.racha.n >= cfg.perdidas_seguidas_pausa;
     item('pausa', 'Racha', pausa ? 'ambar' : 'verde',
       pausa ? `${s.racha.n} pérdidas seguidas: pausa sugerida` : s.racha.n ? `${s.racha.n} ${s.racha.tipo === 'ganada' ? 'ganadas' : 'perdidas'} seguidas` : 'Sin racha');
@@ -244,7 +259,7 @@
   }
 
   return {
-    PARAMETROS_POR_DEFECTO, CUOTA_MINIMA_VALIDA, mesDe, diaDe, mesSiguiente, configVigente,
+    PARAMETROS_POR_DEFECTO, LIMITE_SELECCIONES, CUOTA_MINIMA_VALIDA, mesDe, diaDe, mesSiguiente, configVigente,
     validarConfig, overrideActivo, situacion, validarCampos, evaluarApuesta, estadoReglas,
   };
 });

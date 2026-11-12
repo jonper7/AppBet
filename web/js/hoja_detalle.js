@@ -29,7 +29,7 @@ const HOJA_DETALLE = {
       : '<div class="registro suave">Sin cambios ni correcciones.</div>';
 
     const el = HOJA.abrir(`
-      <h2 class="hoja__tit">${a.tipo === 'simple' ? 'Apuesta simple' : 'Apuesta doble'}</h2>
+      <h2 class="hoja__tit">${a.tipo === 'simple' ? 'Apuesta simple' : a.tipo === 'doble' ? 'Apuesta doble' : `Combinada de ${a.selecciones.length}`}</h2>
       <p class="hoja__sub">${APP.fechaHora(a.fecha_hora)} · ${APP.esc(a.casa)} · <span class="estado--${a.estado}"><b>${a.estado}</b></span></p>
       <div class="hoja__cuerpo">
         <div class="ficha-datos">

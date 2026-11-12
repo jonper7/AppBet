@@ -13,7 +13,7 @@
   const ESTADOS_LIQUIDACION = ['ganada', 'perdida', 'anulada', 'cashout'];
   const RESULTADOS = ['ganada', 'perdida', 'anulada'];
   const CAMPOS_SELECCION_EDITABLES = ['resultado', 'cuota_cierre']; // el resto de la selección es inmutable
-  const REGLAS_LEVANTABLES = ['perdida_mensual', 'max_apuestas_dia'];
+  const REGLAS_LEVANTABLES = ['perdida_mensual', 'max_apuestas_dia', 'max_selecciones']; // la primera vale por mes; las demás, por día
   const VENTANA_DESHACER_MIN = 5;
   const VERSION_COPIA = 2;
   const RANURAS_RESPALDO = 4;      // respaldos semanales rotativos (no hace falta borrar nada)
@@ -208,7 +208,7 @@
       const id = uuid();
       const apuesta = {
         id, fecha_hora: ahora, casa: b.casa,
-        tipo: b.selecciones.length === 1 ? 'simple' : 'doble',
+        tipo: b.selecciones.length === 1 ? 'simple' : b.selecciones.length === 2 ? 'doble' : 'combinada',
         stake: b.stake,
         cuota_total: C.cuotaCombinada(b.selecciones.map((s) => s.cuota)),
         estado: 'pendiente', retorno: null, ganancia_neta: null,

@@ -10,7 +10,7 @@
     'fuente', 'confianza', 'estado_emocional', 'recuperando_perdida',
   ];
   const COLUMNAS_SELECCION = ['partido', 'liga', 'fecha_partido', 'mercado', 'seleccion', 'linea', 'cuota', 'cuota_cierre', 'prob_propia', 'resultado', 'nota'];
-  const MAX_SELECCIONES = 2;
+  const MIN_SELECCIONES = 2; // columnas minimas; crecen si alguna apuesta tiene mas
 
   function celda(v) {
     if (v === null || v === undefined) return '';
@@ -20,11 +20,12 @@
 
   /** `lista`: apuestas con su arreglo `selecciones`. Una fila por apuesta. */
   function csvApuestas(lista) {
+    const cuantas = Math.max(MIN_SELECCIONES, ...lista.map((a) => (a.selecciones || []).length));
     const cab = [...COLUMNAS];
-    for (let i = 1; i <= MAX_SELECCIONES; i += 1) COLUMNAS_SELECCION.forEach((c) => cab.push(`${c}_${i}`));
+    for (let i = 1; i <= cuantas; i += 1) COLUMNAS_SELECCION.forEach((c) => cab.push(`${c}_${i}`));
     const filas = lista.map((a) => {
       const fila = COLUMNAS.map((c) => a[c]);
-      for (let i = 0; i < MAX_SELECCIONES; i += 1) {
+      for (let i = 0; i < cuantas; i += 1) {
         const s = (a.selecciones || [])[i] || {};
         COLUMNAS_SELECCION.forEach((c) => fila.push(s[c]));
       }

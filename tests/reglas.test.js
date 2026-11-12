@@ -193,7 +193,7 @@ test('regla 8: los parámetros nuevos rigen desde el mes siguiente', () => {
 test('validarConfig rechaza valores fuera de rango', () => {
   assert.deepEqual(R.validarConfig(R.PARAMETROS_POR_DEFECTO), []);
   assert.ok(R.validarConfig(Object.assign({}, cfg, { banca_mensual: 0 })).length > 0);
-  assert.ok(R.validarConfig(Object.assign({}, cfg, { max_selecciones: 3 })).length > 0);
+  assert.ok(R.validarConfig(Object.assign({}, cfg, { max_selecciones: 11 })).length > 0);
   assert.ok(R.validarConfig(Object.assign({}, cfg, { cuota_min: 1 })).length > 0);
 });
 
@@ -209,4 +209,60 @@ test('semáforo: verde, ámbar y rojo', () => {
 test('situación: stake máximo hoy es 0 cuando el registro está bloqueado', () => {
   assert.equal(R.situacion(ctx()).stakeMaximoHoy, 10);
   assert.equal(R.situacion(ctx([hecha('1', 'perdida', 10, -30, '2026-10-02T10:00')])).stakeMaximoHoy, 0);
+});
+
+test('más selecciones que tu regla: se rechaza y se puede levantar solo para hoy', () => {
+  const tres = [sel('A', 1.5), sel('B', 1.5), sel('C', 1.5)];
+  const r = R.evaluarApuesta(borrador(5, tres), ctx());
+  assert.equal(r.ok, false);
+  const e = r.errores.find((x) => x.codigo === 'max_selecciones');
+  assert.ok(e);
+  assert.equal(e.levantable, true);
+  // levantado hoy → se acepta con aviso
+  const c = ctx([], { overrides: [{ regla: 'max_selecciones', periodo: '2026-10-15' }] });
+  const ok = R.evaluarApuesta(borrador(5, tres), c);
+  assert.equal(ok.ok, true);
+  assert.ok(codigos(ok.avisos).includes('selecciones_levantado'));
+  // levantado otro día → sigue rechazada
+  const otroDia = ctx([], { overrides: [{ regla: 'max_selecciones', periodo: '2026-10-14' }] });
+  assert.equal(R.evaluarApuesta(borrador(5, tres), otroDia).ok, false);
+});
+
+test('con la regla subida a 4 selecciones, una combinada de 4 se acepta sin avisos de límite', () => {
+  const c = ctx([], { config: Object.assign({}, cfg, { max_selecciones: 4 }) });
+  const cuatro = [sel('A', 1.4), sel('B', 1.4), sel('C', 1.4), sel('D', 1.4)];
+  const r = R.evaluarApuesta(borrador(5, cuatro), c);
+  assert.equal(r.ok, true);
+  assert.ok(!codigos(r.avisos).includes('selecciones_levantado'));
+  assert.equal(R.evaluarApuesta(borrador(5, [...cuatro, sel('E', 1.4)]), c).ok, false);
+});
+
+test('el límite absoluto de 10 selecciones no se puede levantar', () => {
+  const once = Array.from({ length: 11 }, (_, i) => sel(`P${i}`, 1.3));
+  const c = ctx([], { config: Object.assign({}, cfg, { max_selecciones: 10 }), overrides: [{ regla: 'max_selecciones', periodo: '2026-10-15' }] });
+  const r = R.evaluarApuesta(borrador(5, once), c);
+  assert.equal(r.ok, false);
+  const e = r.errores.find((x) => x.codigo === 'limite_selecciones');
+  assert.ok(e);
+  assert.equal(e.levantable, false);
+});
+
+test('en una combinada larga también se exigen partidos distintos y cuota total mínima', () => {
+  const c = ctx([], { config: Object.assign({}, cfg, { max_selecciones: 5 }) });
+  const repetidas = R.evaluarApuesta(borrador(5, [sel('A', 1.5), sel('B', 1.5), sel('a', 1.5)]), c);
+  assert.ok(codigos(repetidas.errores).includes('partidos_repetidos'));
+  const baja = R.evaluarApuesta(borrador(5, [sel('A', 1.1), sel('B', 1.1), sel('C', 1.1)]), c);
+  assert.ok(codigos(baja.errores).includes('cuota_min'));
+});
+
+test('validarConfig acepta de 1 a 10 selecciones', () => {
+  assert.deepEqual(R.validarConfig(Object.assign({}, cfg, { max_selecciones: 10 })), []);
+  assert.deepEqual(R.validarConfig(Object.assign({}, cfg, { max_selecciones: 4 })), []);
+  assert.ok(R.validarConfig(Object.assign({}, cfg, { max_selecciones: 0 })).length > 0);
+});
+
+test('semáforo: el límite de selecciones levantado deja la regla en ámbar', () => {
+  const c = ctx([], { overrides: [{ regla: 'max_selecciones', periodo: '2026-10-15' }] });
+  const item = R.estadoReglas(c).items.find((i) => i.id === 'combinada');
+  assert.equal(item.nivel, 'ambar');
 });

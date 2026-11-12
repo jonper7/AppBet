@@ -7,11 +7,11 @@ Es una PWA solo para el teléfono: HTML + CSS + JavaScript sin build, datos en e
 
 ## Qué hace
 
-- **Parámetros** editables solo para el mes siguiente (banca 100, stake máx. 10 %, pérdida máx. 30 %, 2 selecciones, cuota mínima 2,00, 2 apuestas/día).
-- **Registrar** una apuesta simple o doble, con cuota total, retorno, probabilidad implícita y EV calculados en vivo, avisos de reglas y confirmación antes de guardar.
+- **Parámetros** editables solo para el mes siguiente (banca 100, stake máx. 10 %, pérdida máx. 30 %, 2 selecciones por combinada —configurable de 1 a 10—, cuota mínima 2,00, 2 apuestas/día).
+- **Registrar** una apuesta simple o **combinada de 2 a 10 selecciones** (botón «+ Añadir selección»), con cuota total, retorno, probabilidad implícita y EV calculados en vivo, avisos de reglas y confirmación antes de guardar.
   - **Casas y ligas guardadas:** lo que escribes al registrar se guarda solo y la próxima vez lo eliges con un toque (fichas bajo el campo). Si escribes «laliga» y ya existe «LaLiga», usa la escritura guardada, así los reportes no se parten en duplicados. Las listas se editan en **Ajustes** (añadir, renombrar, quitar); renombrar o quitar solo cambia la lista, no las apuestas ya registradas.
   - **El stake se calcula solo** (nunca más que el stake máximo): si pones tu probabilidad propia y hay ventaja (EV > 0), usa **¼ Kelly** sobre la banca actual; si no, usa **confianza/5 × stake máximo**. Puedes escribir otro valor a mano y volver al automático con un toque.
-- **Liquidar** a un toque (ganada / perdida / anulada, con «Deshacer»), cashout (pide el retorno) y doble «por selección».
+- **Liquidar** a un toque (ganada / perdida / anulada, con «Deshacer»), cashout (pide el retorno) y combinadas «por selección».
 - **Inicio**: banca actual, pérdida del mes frente al límite (barra), stake máximo de hoy, apuestas de hoy, racha, yield, acierto, drawdown y semáforo de reglas.
 - **Apuestas**: historial filtrable por mes, estado, mercado, liga y casa, con exportación a CSV y detalle de cada apuesta.
 - **Análisis**: yield, ROI sobre la banca, acierto, drawdown, **EV medio** (con ganancia esperada frente a la real) y **CLV medio**; curva de saldo con cursor; desgloses por **mercado, liga, casa, fuente, estado emocional y tipo**; y **calibración** (Brier y curva por tramos de 10 puntos), que solo se calcula con **100 o más selecciones liquidadas** con probabilidad propia; si no, muestra «muestra insuficiente (<100)».
@@ -26,14 +26,14 @@ Es una PWA solo para el teléfono: HTML + CSS + JavaScript sin build, datos en e
 | 1 | La pérdida neta del mes llega al límite (30 % de la banca inicial) | **Bloquea** el registro hasta el mes siguiente. Se puede **levantar con un aviso** explícito (solo ese mes); queda en el registro de cambios y se puede reactivar en Ajustes |
 | 2 | Stake mayor al 10 % de la banca inicial | **Rechaza** |
 | 3 | Subir el stake respecto a la apuesta anterior si esa fue perdida | Aviso |
-| 4 | Combinada: máx. 2 selecciones, de partidos distintos, cuota total ≥ 2,00 | **Rechaza** |
+| 4 | Combinada: máx. N selecciones (por defecto 2; parámetro de 1 a 10), de partidos distintos, cuota total ≥ 2,00 | **Rechaza**; el límite de selecciones se puede **levantar con aviso solo para ese día** (tope absoluto de 10) |
 | 5 | Depósitos del mes por encima de la banca mensual | Aviso |
 | 6 | Dos pérdidas seguidas | Aviso: pausa sugerida |
 | 7 | Una apuesta registrada no se edita | Solo se liquida; las correcciones van a `log_cambios` |
 | 8 | Cambios de parámetros | Rigen desde el mes siguiente |
 | + | Máximo de 2 apuestas por día | **Bloquea**, también levantable con aviso (solo ese día) |
 
-Criterios de aceptación cubiertos por pruebas automáticas: bloqueo al llegar al 30 % de pérdida, rechazo de stake > 10 %, rechazo de combinadas de más de 2 selecciones o con cuota total < 2,00, e imposibilidad de editar apuestas registradas.
+Criterios de aceptación cubiertos por pruebas automáticas: bloqueo al llegar al 30 % de pérdida, rechazo de stake > 10 %, rechazo de combinadas que superen el máximo de selecciones (2 por defecto) o con cuota total < 2,00, e imposibilidad de editar apuestas registradas.
 
 ## Cómo correrla desde GitHub (GitHub Pages)
 
@@ -100,7 +100,8 @@ tools/                         # servidor local y generador de iconos
 - **La inmutabilidad la garantiza la app, no la base de datos.** `datos.js` no ofrece ninguna operación de editar ni borrar apuestas (ni el adaptador de IndexedDB tiene `delete`), pero quien abra las herramientas del navegador podría saltársela. Sirve para auditarte a ti mismo, no como control a prueba de manipulación.
 - **La hora de la apuesta es la del momento del registro** y no se puede escribir a mano; si el partido ya empezó, la app avisa.
 - **Pérdida neta del mes** = suma de la ganancia neta de las apuestas liquidadas de ese mes (las pendientes no cuentan hasta liquidarse). La **banca inicial del mes** es el parámetro «banca mensual», no un saldo arrastrado.
-- **Cuota mínima 2,00**: se exige a las dobles, no a las simples.
+- **Cuota mínima 2,00**: se exige a las dobles y combinadas, no a las simples.
+- **Combinadas largas:** la regla por defecto sigue siendo 2 selecciones. Para usar más, súbela en **Ajustes → Selecciones por combinada** (rige desde el mes siguiente) o, si la necesitas hoy, usa **Levantar bloqueo** en el registro (vale solo para ese día y queda anotado). El tipo se guarda como simple (1), doble (2) o combinada (3 o más).
 - **Actualizar la app**: sube el número de `VERSION` en `web/sw.js` en cada cambio de archivos, para que los teléfonos descarguen la versión nueva.
 - **Iconos**: `python tools/generar_iconos.py` (requiere Pillow) los regenera.
 - Más adelante se puede empaquetar como APK (TWA con Bubblewrap), como en `DISENO_APP.md`.
@@ -108,4 +109,4 @@ tools/                         # servidor local y generador de iconos
 ## Ideas para más adelante
 
 - Empaquetar como APK (TWA con Bubblewrap).
-- Marcar por selección el resultado de una doble ya liquidada (hoy se hace al liquidar).
+- Marcar por selección el resultado de una combinada ya liquidada (hoy se hace al liquidar).

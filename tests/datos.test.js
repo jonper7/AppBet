@@ -160,3 +160,34 @@ test('liquidar una doble por selección: pata anulada cuenta como 1.00', async (
   const guardadas = (await db.cargar()).selecciones;
   assert.deepEqual(guardadas.map((s) => s.resultado).sort(), ['anulada', 'ganada']);
 });
+
+test('combinada de 3 selecciones: se rechaza con la regla por defecto, y con el límite levantado se guarda como «combinada»', async () => {
+  const db = await nueva();
+  const tres = () => borrador(5, [sel('A', 1.5), sel('B', 1.5), sel('C', 1.5)]);
+  await assert.rejects(db.registrarApuesta(tres(), AHORA), /máximo 2 selecciones/);
+  await db.levantarBloqueo('max_selecciones', AHORA);
+  const { apuesta, selecciones } = await db.registrarApuesta(tres(), AHORA);
+  assert.equal(apuesta.tipo, 'combinada');
+  assert.equal(apuesta.cuota_total, 3.38);
+  assert.deepEqual(selecciones.map((s) => s.orden), [0, 1, 2]);
+  assert.ok((await db.cargar()).log.some((l) => l.tipo === 'bloqueo_levantado' && l.regla === 'max_selecciones'));
+});
+
+test('liquidar una combinada de 3 por selección: una anulada cuenta como 1,00', async () => {
+  const C = require('../web/js/calculos.js');
+  const db = await nueva();
+  await db.levantarBloqueo('max_selecciones', AHORA);
+  const { apuesta, selecciones } = await db.registrarApuesta(borrador(10, [sel('A', 2), sel('B', 1.5), sel('C', 1.6)]), AHORA);
+  const res = ['ganada', 'anulada', 'ganada'];
+  const liq = C.liquidacionDesdeSelecciones(10, selecciones.map((s, i) => ({ cuota: s.cuota, resultado: res[i] })));
+  assert.deepEqual(liq, { estado: 'ganada', retorno: 32 });
+  const r = await db.liquidar(apuesta.id, Object.assign({ resultados: selecciones.map((s, i) => ({ id: s.id, resultado: res[i] })) }, liq), AHORA);
+  assert.equal(r.ganancia_neta, 22);
+});
+
+test('guardar parámetros con 5 selecciones por combinada es válido (rige desde el mes siguiente)', async () => {
+  const db = await nueva();
+  const e = await db.guardarConfig({ banca_mensual: 100, stake_max_pct: 10, perdida_max_pct: 30, max_selecciones: 5, cuota_min: 2, max_apuestas_dia: 2, perdidas_seguidas_pausa: 2 }, AHORA);
+  assert.equal(e.max_selecciones, 5);
+  assert.equal(e.vigente_desde, '2026-11');
+});

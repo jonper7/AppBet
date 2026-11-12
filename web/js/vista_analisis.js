@@ -88,7 +88,7 @@ APP.vistas.analisis = {
         </section>
 
         <section class="bloque">
-          <div class="bloque__cab"><div><div class="bloque__tit">Desgloses</div><div class="bloque__sub">Solo apuestas resueltas. Una doble cuenta en cada mercado y liga de sus selecciones.</div></div></div>
+          <div class="bloque__cab"><div><div class="bloque__tit">Desgloses</div><div class="bloque__sub">Solo apuestas resueltas. Una combinada cuenta en cada mercado y liga de sus selecciones.</div></div></div>
           <div class="fichas" style="margin-bottom:6px">
             ${this.DIMENSIONES.map(([k, t]) => `<button class="ficha ${est.dimension === k ? 'on' : ''}" data-accion="analisis_dim" data-valor="${k}">${t}</button>`).join('')}
           </div>

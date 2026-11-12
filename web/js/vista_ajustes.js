@@ -4,8 +4,8 @@ APP.vistas.ajustes = {
     ['banca_mensual', 'Banca mensual', 'decimal'],
     ['stake_max_pct', 'Stake máximo (% de la banca)', 'decimal'],
     ['perdida_max_pct', 'Pérdida máxima mensual (%)', 'decimal'],
-    ['max_selecciones', 'Selecciones por combinada', 'numeric'],
-    ['cuota_min', 'Cuota total mínima (dobles)', 'decimal'],
+    ['max_selecciones', 'Selecciones por combinada (máx. 10)', 'numeric'],
+    ['cuota_min', 'Cuota total mínima (combinadas)', 'decimal'],
     ['max_apuestas_dia', 'Apuestas por día', 'numeric'],
     ['perdidas_seguidas_pausa', 'Pérdidas seguidas para pausa', 'numeric'],
   ],
@@ -30,7 +30,7 @@ APP.vistas.ajustes = {
       `<label class="campo ${k === 'banca_mensual' ? 'campo--completo' : ''}"><span>${etq}</span><input name="${k}" value="${APP.esc(k === 'cuota_min' ? APP.cuota(proxima[k]) : String(proxima[k]).replace('.', ','))}" inputmode="${modo}" autocomplete="off"></label>`).join('');
     const bloqueos = levantados.map((o) => `
       <div class="regla" style="grid-template-columns:1fr auto;align-items:center">
-        <div><div class="regla__tit">${o.regla === 'perdida_mensual' ? 'Pérdida mensual' : 'Apuestas por día'}</div><div class="regla__det">Levantado para ${o.periodo}</div></div>
+        <div><div class="regla__tit">${({ perdida_mensual: 'Pérdida mensual', max_apuestas_dia: 'Apuestas por día', max_selecciones: 'Selecciones por combinada' })[o.regla] || o.regla}</div><div class="regla__det">Levantado para ${o.periodo}</div></div>
         <button class="mini mini--rojo" type="button" data-accion="reactivar" data-regla="${o.regla}">Reactivar</button>
       </div>`).join('');
     const ultima = datos.ajustes.ultima_exportacion || null;

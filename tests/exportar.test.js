@@ -16,3 +16,13 @@ test('CSV: una fila por apuesta con sus selecciones y escape de comillas y comas
   assert.ok(fila.includes(',no,')); // recuperando_perdida
   assert.equal(fila.split(',').length > cab.split(',').length - 1, true);
 });
+
+test('CSV: una combinada de 3 selecciones añade las columnas de la tercera', () => {
+  const sels = ['A', 'B', 'C'].map((p, i) => ({ partido: p, liga: 'L', mercado: '1X2', seleccion: 'Local', cuota: 1.5 + i / 10 }));
+  const csv = E.csvApuestas([{ id: 'a1', tipo: 'combinada', casa: 'X', selecciones: sels }]);
+  const [cab, fila] = csv.split('\r\n');
+  assert.ok(cab.includes('partido_3'));
+  assert.ok(!cab.includes('partido_4'));
+  assert.equal(cab.split(',').length, fila.split(',').length);
+  assert.ok(fila.includes(',C,'));
+});

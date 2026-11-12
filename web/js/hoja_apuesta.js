@@ -1,6 +1,7 @@
-/* hoja_apuesta.js — hoja para registrar una apuesta (1 o 2 selecciones), con cálculo y reglas en vivo. */
+/* hoja_apuesta.js — hoja para registrar una apuesta (simple o combinada de 2 a 10 selecciones), con cálculo y reglas en vivo. */
 const HOJA_APUESTA = {
   form: null,
+  cantidad: 1, // selecciones visibles (1 = simple; 2 o más = combinada)
   stakeManual: false, // true cuando el usuario escribe el stake; si no, se calcula solo
   validando: false, // se activa al pulsar Registrar: entonces se muestran también los campos faltantes
   CODIGOS_CAMPO: ['casa', 'stake', 'fuente', 'estado_emocional', 'confianza', 'partido', 'liga', 'fecha_partido', 'mercado', 'seleccion', 'cuota', 'prob_propia', 'selecciones'],
@@ -50,6 +51,8 @@ const HOJA_APUESTA = {
     this.validando = false;
     this.stakeManual = false;
     this.captura = null;
+    this.cantidad = 1;
+    this.ligas = ligas;
     const el = HOJA.abrir(`
       <h2 class="hoja__tit">Registrar apuesta</h2>
       <p class="hoja__sub">Se guarda con la hora actual (<b>${APP.fechaHora(DATOS.ahoraLocal())}</b>). Una vez registrada no se edita: solo se liquida.</p>
@@ -57,9 +60,13 @@ const HOJA_APUESTA = {
         <div class="mensajes" id="ap-bloqueos"></div>
         <div class="segmentos" role="radiogroup" aria-label="Tipo">
           <label><input type="radio" name="tipo" value="simple" checked>Simple</label>
-          <label><input type="radio" name="tipo" value="doble">Doble</label>
+          <label><input type="radio" name="tipo" value="combinada">Combinada</label>
         </div>
-        ${this.bloqueSeleccion(0, ligas)}${this.bloqueSeleccion(1, ligas)}
+        <div class="hoja__cuerpo" id="ap-selecciones">${this.bloqueSeleccion(0, ligas)}${this.bloqueSeleccion(1, ligas)}</div>
+        <div class="hoja__pie" id="ap-acciones-sel" hidden style="margin-top:0;flex-wrap:wrap">
+          <button class="boton" type="button" id="ap-mas-sel">+ Añadir selección</button>
+          <button class="boton" type="button" id="ap-menos-sel" hidden>Quitar la última</button>
+        </div>
         <div class="campos">
           <label class="campo"><span>Casa</span><input name="casa" list="dl-casas" autocomplete="off"></label>
           <label class="campo"><span>Stake <small class="campo__ayuda" id="ap-stake-modo">(automático)</small></span><input name="stake" placeholder="0,00" inputmode="decimal" autocomplete="off"></label>
@@ -88,6 +95,47 @@ const HOJA_APUESTA = {
       </form>`, () => { this.form = null; });
     this.form = el.querySelector('#form-apuesta');
     this.enlazar(el);
+    this.sincronizar();
+    this.actualizar();
+  },
+
+  /** Muestra solo las selecciones en uso y los botones de añadir/quitar según el tipo. */
+  sincronizar() {
+    const f = this.form;
+    const combinada = f.elements.tipo.value === 'combinada';
+    if (!combinada) this.cantidad = 1;
+    else if (this.cantidad < 2) this.cantidad = 2;
+    f.querySelectorAll('[data-i]').forEach((b) => { b.hidden = Number(b.dataset.i) >= this.cantidad; });
+    f.querySelector('#ap-acciones-sel').hidden = !combinada;
+    f.querySelector('#ap-mas-sel').disabled = this.cantidad >= REGLAS.LIMITE_SELECCIONES;
+    f.querySelector('#ap-menos-sel').hidden = this.cantidad <= 2;
+    f.querySelectorAll('[data-i] .seleccion-bloque__tit').forEach((t) => {
+      const i = Number(t.closest('[data-i]').dataset.i);
+      t.textContent = this.cantidad > 1 ? `Selección ${i + 1} de ${this.cantidad}` : 'Selección';
+    });
+  },
+
+  añadirSeleccion() {
+    if (this.cantidad >= REGLAS.LIMITE_SELECCIONES) return;
+    const f = this.form;
+    const i = this.cantidad;
+    if (!f.querySelector(`[data-i="${i}"]`)) f.querySelector('#ap-selecciones').insertAdjacentHTML('beforeend', this.bloqueSeleccion(i, this.ligas));
+    this.cantidad += 1;
+    this.sincronizar();
+    this.actualizar();
+    const bloque = f.querySelector(`[data-i="${i}"]`);
+    bloque.scrollIntoView({ behavior: APP.reducirMovimiento() ? 'auto' : 'smooth', block: 'start' });
+    if (!('ontouchstart' in window)) f.elements[`partido_${i}`].focus();
+  },
+
+  /** Quita la última selección y vacía sus campos (las dos primeras de una combinada no se quitan). */
+  quitarSeleccion() {
+    if (this.cantidad <= 2) return;
+    const f = this.form;
+    const bloque = f.querySelector(`[data-i="${this.cantidad - 1}"]`);
+    bloque.querySelectorAll('input, select').forEach((c) => { if (c.tagName === 'SELECT') c.selectedIndex = 0; else c.value = ''; });
+    this.cantidad -= 1;
+    this.sincronizar();
     this.actualizar();
   },
 
@@ -106,9 +154,11 @@ const HOJA_APUESTA = {
     });
     el.querySelector('[data-stake-auto]').addEventListener('click', () => { this.stakeManual = false; this.actualizar(); });
     f.addEventListener('change', () => {
-      f.querySelector('[data-i="1"]').hidden = f.elements.tipo.value !== 'doble';
+      this.sincronizar();
       this.actualizar();
     });
+    el.querySelector('#ap-mas-sel').addEventListener('click', () => this.añadirSeleccion());
+    el.querySelector('#ap-menos-sel').addEventListener('click', () => this.quitarSeleccion());
     f.addEventListener('submit', (e) => { e.preventDefault(); this.guardar(); });
     el.querySelector('[data-cerrar]').addEventListener('click', () => HOJA.cerrar());
     f.elements.archivo_captura.addEventListener('change', async (e) => {
@@ -153,7 +203,7 @@ const HOJA_APUESTA = {
     const f = this.form;
     const g = (n) => (f.elements[n] ? f.elements[n].value : '');
     const num = (n) => { const x = CALCULOS.leerNumero(g(n)); return Number.isFinite(x) ? CALCULOS.redondear2(x) : NaN; };
-    const cantidad = f.elements.tipo.value === 'doble' ? 2 : 1;
+    const cantidad = this.cantidad;
     const selecciones = [];
     for (let i = 0; i < cantidad; i += 1) {
       selecciones.push({
@@ -236,9 +286,12 @@ const HOJA_APUESTA = {
   },
 
   async levantar(regla) {
-    const texto = regla === 'perdida_mensual'
-      ? 'Llegaste al límite de pérdida que tú mismo fijaste para este mes. Si lo levantas, podrás seguir apostando y perder más de lo que decidiste tolerar. Queda anotado en el registro de cambios y vale solo para este mes.'
-      : 'Alcanzaste el máximo de apuestas por día que fijaste. Si lo levantas podrás registrar más hoy. Queda anotado en el registro de cambios y vale solo para hoy.';
+    const textos = {
+      perdida_mensual: 'Llegaste al límite de pérdida que tú mismo fijaste para este mes. Si lo levantas, podrás seguir apostando y perder más de lo que decidiste tolerar. Queda anotado en el registro de cambios y vale solo para este mes.',
+      max_apuestas_dia: 'Alcanzaste el máximo de apuestas por día que fijaste. Si lo levantas podrás registrar más hoy. Queda anotado en el registro de cambios y vale solo para hoy.',
+      max_selecciones: 'Tu regla limita las selecciones por combinada. Si la levantas podrás registrar combinadas más largas (hasta 10 selecciones). Cada selección extra reduce mucho la probabilidad de acertar. Queda anotado en el registro de cambios y vale solo para hoy. Para cambiarla de forma permanente, edita el parámetro en Ajustes (rige desde el mes siguiente).',
+    };
+    const texto = textos[regla];
     const ok = await DIALOGO.confirmar({
       titulo: '¿Levantar el bloqueo?', mensaje: texto, aceptar: 'Levantar bloqueo', cancelar: 'Mantener bloqueo', peligro: true,
     });
@@ -263,7 +316,7 @@ const HOJA_APUESTA = {
     const avisos = r.avisos.map((a) => APP.mensaje('aviso', APP.esc(a.mensaje))).join('');
     const ok = await DIALOGO.confirmar({
       titulo: '¿Registrar esta apuesta?',
-      mensaje: `<b>${b.selecciones.length === 1 ? 'Simple' : 'Doble'}</b> · ${APP.esc(b.casa)}<br>${lineas}<br><br>
+      mensaje: `<b>${b.selecciones.length === 1 ? 'Simple' : b.selecciones.length === 2 ? 'Doble' : `Combinada de ${b.selecciones.length}`}</b> · ${APP.esc(b.casa)}<br>${lineas}<br><br>
         Stake <b>${APP.dinero(b.stake)}</b> · cuota total <b>${APP.cuota(total)}</b> · retorno potencial <b>${APP.dinero(CALCULOS.retornoPotencial(b.stake, total))}</b>
         <div class="mensajes" style="margin-top:12px">${avisos}</div>
         <p style="margin-top:12px">Después de registrarla no podrás editar la cuota, el stake, la hora ni las selecciones.</p>`,

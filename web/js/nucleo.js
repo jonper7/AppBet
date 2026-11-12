@@ -150,6 +150,8 @@ APP.filaApuesta = (a, { botones = false } = {}) => {
     </div>${acciones}</article>`;
 };
 
+APP.NOMBRE_REGLA = { perdida_mensual: 'pérdida mensual', max_apuestas_dia: 'apuestas por día', max_selecciones: 'selecciones por combinada' };
+
 /** Texto legible para una entrada de log_cambios. */
 APP.textoLog = (l) => {
   switch (l.tipo) {
@@ -158,8 +160,8 @@ APP.textoLog = (l) => {
     case 'correccion': return `Corrección de ${l.campo}: ${l.antes || '—'} → ${l.despues}. Motivo: ${l.motivo}`;
     case 'seleccion': return `Selección actualizada: ${Object.keys(l.despues).map((k) => `${k} ${l.antes[k] ?? '—'} → ${l.despues[k] ?? '—'}`).join(', ')}`;
     case 'config': return `Parámetros guardados para ${APP.nombreMes(l.vigente_desde)}`;
-    case 'bloqueo_levantado': return `Bloqueo «${l.regla === 'perdida_mensual' ? 'pérdida mensual' : 'apuestas por día'}» levantado (${l.periodo})`;
-    case 'bloqueo_reactivado': return `Bloqueo «${l.regla === 'perdida_mensual' ? 'pérdida mensual' : 'apuestas por día'}» reactivado (${l.periodo})`;
+    case 'bloqueo_levantado': return `Bloqueo «${APP.NOMBRE_REGLA[l.regla] || l.regla}» levantado (${l.periodo})`;
+    case 'bloqueo_reactivado': return `Bloqueo «${APP.NOMBRE_REGLA[l.regla] || l.regla}» reactivado (${l.periodo})`;
     case 'catalogo': {
       const quitados = l.antes.filter((x) => !l.despues.includes(x));
       const nuevos = l.despues.filter((x) => !l.antes.includes(x));
