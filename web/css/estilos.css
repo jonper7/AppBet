@@ -423,3 +423,23 @@ body.demo .vista { padding-top: calc(54px + var(--zona-arriba)); }
 .catalogo__fila:first-child { border-top: 0; }
 .catalogo__nombre { font-weight: 600; overflow-wrap: anywhere; }
 .catalogo__acc { display: flex; gap: 6px; }
+
+/* Desplegable de casas y ligas guardadas (campo de texto + lista con desplazamiento) */
+.combo { position: relative; }
+.combo input { padding-right: 46px; }
+.combo__flecha {
+  position: absolute; right: 4px; top: 4px; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+  color: var(--texto-medio); transition: background .2s, transform .45s var(--resorte);
+}
+.combo__flecha svg { transition: transform .3s var(--suave); }
+.combo.abierto .combo__flecha svg { transform: rotate(180deg); }
+.combo__flecha:active { background: var(--superficie-2); transform: scale(.92); transition-duration: .08s; }
+.combo__lista {
+  position: absolute; z-index: 6; left: 0; top: calc(100% + 6px); min-width: 100%; width: max-content; max-width: min(340px, 86vw);
+  max-height: 224px; overflow-y: auto; overscroll-behavior: contain; padding: 6px; border-radius: 16px;
+  background: rgba(22, 26, 40, .97); border: 1px solid var(--borde-fuerte); box-shadow: var(--sombra);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+}
+.combo__item { display: block; width: 100%; text-align: left; padding: 10px 12px; min-height: 40px; border-radius: 10px; font-size: .92rem; color: var(--texto); }
+.combo__item:active { background: var(--superficie-2); }
+.combo__item.on { background: var(--accion); color: #0b1400; font-weight: 700; }

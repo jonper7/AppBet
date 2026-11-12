@@ -6,20 +6,67 @@ const HOJA_APUESTA = {
   validando: false, // se activa al pulsar Registrar: entonces se muestran también los campos faltantes
   CODIGOS_CAMPO: ['casa', 'stake', 'fuente', 'estado_emocional', 'confianza', 'partido', 'liga', 'fecha_partido', 'mercado', 'seleccion', 'cuota', 'prob_propia', 'selecciones'],
 
-  /** Fichas con las casas o ligas guardadas: un toque rellena el campo. */
-  fichas(lista, campo) {
-    if (!lista || !lista.length) return '';
-    return `<div class="campo--completo fichas fichas--campo" data-chips="${campo}">${lista.map((n) => `<button type="button" class="ficha ficha--mini" data-valor="${APP.esc(n)}">${APP.esc(n)}</button>`).join('')}</div>`;
+  /** Para comparar sin importar mayúsculas, tildes ni espacios sobrantes. */
+  plegar(t) {
+    return String(t || '').trim().replace(/\s+/g, ' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   },
 
-  /** Resalta la ficha que coincide con lo escrito en el campo. */
-  marcarFichas() {
-    const f = this.form;
-    const plegar = (t) => String(t || '').trim().replace(/\s+/g, ' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    f.querySelectorAll('[data-chips]').forEach((caja) => {
-      const actual = plegar(f.elements[caja.dataset.chips].value);
-      caja.querySelectorAll('.ficha').forEach((b) => b.classList.toggle('on', actual !== '' && plegar(b.dataset.valor) === actual));
+  /** Campo de texto con desplegable: se puede escribir algo nuevo o elegir de la lista guardada (con desplazamiento). */
+  combo(nombre, etiqueta, lista) {
+    const items = (lista || []).map((n) => `<button type="button" class="combo__item" data-valor="${APP.esc(n)}">${APP.esc(n)}</button>`).join('');
+    const flecha = items
+      ? '<button type="button" class="combo__flecha" aria-label="Ver la lista guardada"><svg viewBox="0 0 12 8" width="12" height="8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m1 1 5 5 5-5"/></svg></button>'
+      : '';
+    return `<div class="campo"><span>${etiqueta}</span>
+      <div class="combo${items ? ' combo--con-lista' : ''}">
+        <input name="${nombre}" autocomplete="off" aria-label="${etiqueta}">${flecha}
+        ${items ? `<div class="combo__lista" role="listbox" hidden>${items}</div>` : ''}
+      </div></div>`;
+  },
+
+  cerrarListas(excepto) {
+    this.form.querySelectorAll('.combo').forEach((c) => {
+      if (c === excepto) return;
+      const l = c.querySelector('.combo__lista');
+      if (l) l.hidden = true;
+      c.classList.remove('abierto');
     });
+  },
+
+  /** Muestra la lista completa (flecha) o la cierra. */
+  alternarLista(combo) {
+    const lista = combo.querySelector('.combo__lista');
+    if (!lista) return;
+    if (!lista.hidden) { this.cerrarListas(); return; }
+    this.cerrarListas(combo);
+    const actual = this.plegar(combo.querySelector('input').value);
+    lista.querySelectorAll('.combo__item').forEach((b) => { b.hidden = false; b.classList.toggle('on', actual !== '' && this.plegar(b.dataset.valor) === actual); });
+    lista.hidden = false;
+    combo.classList.add('abierto');
+    const marcado = lista.querySelector('.combo__item.on');
+    if (marcado) marcado.scrollIntoView({ block: 'nearest' });
+    lista.scrollIntoView({ block: 'nearest' });
+  },
+
+  /** Mientras se escribe: filtra la lista y la abre si hay coincidencias (se cierra si ya coincide exacto). */
+  filtrarLista(combo) {
+    const lista = combo.querySelector('.combo__lista');
+    if (!lista) return;
+    const q = this.plegar(combo.querySelector('input').value);
+    let visibles = 0;
+    let exacto = false;
+    lista.querySelectorAll('.combo__item').forEach((b) => {
+      const n = this.plegar(b.dataset.valor);
+      const coincide = q === '' || n.includes(q);
+      b.hidden = !coincide;
+      b.classList.toggle('on', q !== '' && n === q);
+      if (coincide) visibles += 1;
+      if (n === q) exacto = true;
+    });
+    const abrir = q !== '' && visibles > 0 && !exacto;
+    this.cerrarListas(combo);
+    lista.hidden = !abrir;
+    combo.classList.toggle('abierto', abrir);
   },
 
   bloqueSeleccion(i, ligas) {
@@ -29,9 +76,8 @@ const HOJA_APUESTA = {
       <div class="seleccion-bloque__tit">Selección ${n}</div>
       <div class="campos">
         <label class="campo campo--completo"><span>Partido</span><input name="partido_${i}" placeholder="Local vs Visitante" autocomplete="off"></label>
-        <label class="campo"><span>Liga</span><input name="liga_${i}" list="dl-ligas" autocomplete="off"></label>
+        ${this.combo(`liga_${i}`, 'Liga', ligas)}
         <label class="campo"><span>Fecha del partido</span><input type="datetime-local" name="fecha_partido_${i}"></label>
-        ${this.fichas(ligas, `liga_${i}`)}
         <label class="campo"><span>Mercado</span><select name="mercado_${i}">${mercados}</select></label>
         <label class="campo"><span>Línea <small class="campo__ayuda">(opcional)</small></span><input name="linea_${i}" placeholder="2.5" inputmode="decimal" autocomplete="off"></label>
         <label class="campo campo--completo"><span>Selección</span><input name="seleccion_${i}" placeholder="Local, Más de 2.5, Ambos marcan…" autocomplete="off"></label>
@@ -68,9 +114,8 @@ const HOJA_APUESTA = {
           <button class="boton" type="button" id="ap-menos-sel" hidden>Quitar la última</button>
         </div>
         <div class="campos">
-          <label class="campo"><span>Casa</span><input name="casa" list="dl-casas" autocomplete="off"></label>
+          ${this.combo('casa', 'Casa', casas)}
           <label class="campo"><span>Stake <small class="campo__ayuda" id="ap-stake-modo">(automático)</small></span><input name="stake" placeholder="0,00" inputmode="decimal" autocomplete="off"></label>
-          ${this.fichas(casas, 'casa')}
           <div class="campo campo--completo" style="gap:6px;margin-top:-4px">
             <span class="campo__ayuda" id="ap-stake-ayuda"></span>
             <button class="mini mini--suave" type="button" data-stake-auto hidden style="justify-self:start;padding-left:0">Volver al stake automático</button>
@@ -90,8 +135,6 @@ const HOJA_APUESTA = {
           <button class="boton" type="button" data-cerrar>Cancelar</button>
           <button class="boton boton--principal" type="submit" id="ap-guardar">Registrar</button>
         </div>
-        <datalist id="dl-casas">${opciones(casas)}</datalist>
-        <datalist id="dl-ligas">${opciones(ligas)}</datalist>
       </form>`, () => { this.form = null; });
     this.form = el.querySelector('#form-apuesta');
     this.enlazar(el);
@@ -143,14 +186,25 @@ const HOJA_APUESTA = {
     const f = this.form;
     f.addEventListener('input', (e) => {
       if (e.target.name === 'stake') this.stakeManual = true;
+      const combo = e.target.closest && e.target.closest('.combo');
+      if (combo) this.filtrarLista(combo);
       this.actualizar();
     });
     f.addEventListener('click', (e) => {
-      const ficha = e.target.closest('[data-chips] .ficha');
-      if (!ficha) return;
-      const campo = f.elements[ficha.closest('[data-chips]').dataset.chips];
-      campo.value = ficha.dataset.valor;
-      campo.dispatchEvent(new Event('input', { bubbles: true }));
+      const flecha = e.target.closest('.combo__flecha');
+      if (flecha) { this.alternarLista(flecha.closest('.combo')); return; }
+      const item = e.target.closest('.combo__item');
+      if (item) {
+        const campo = item.closest('.combo').querySelector('input');
+        campo.value = item.dataset.valor;
+        campo.dispatchEvent(new Event('input', { bubbles: true }));
+        this.cerrarListas();
+        return;
+      }
+      if (!e.target.closest('.combo')) this.cerrarListas();
+    });
+    f.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && f.querySelector('.combo__lista:not([hidden])')) { e.stopPropagation(); this.cerrarListas(); }
     });
     el.querySelector('[data-stake-auto]').addEventListener('click', () => { this.stakeManual = false; this.actualizar(); });
     f.addEventListener('change', () => {
@@ -252,7 +306,6 @@ const HOJA_APUESTA = {
   },
 
   actualizar() {
-    this.marcarFichas();
     this.autoStake();
     const b = this.leer();
     const ev = REGLAS.evaluarApuesta(b, this.contexto());
