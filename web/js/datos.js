@@ -177,7 +177,7 @@
             fecha_partido: s.fecha_partido || '',
             mercado: s.mercado,
             seleccion: String(s.seleccion || '').trim(),
-            linea: String(s.linea || '').trim(),
+            linea: Number.isFinite(C.leerNumero(s.linea)) ? String(C.leerNumero(s.linea)) : String(s.linea || '').trim(),
             cuota: C.redondear2(C.leerNumero(s.cuota)),
             prob_propia: s.prob_propia === '' || s.prob_propia == null ? null : prob,
             nota: String(s.nota || '').trim(),

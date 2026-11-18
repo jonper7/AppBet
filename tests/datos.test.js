@@ -191,3 +191,14 @@ test('guardar parámetros con 5 selecciones por combinada es válido (rige desde
   assert.equal(e.max_selecciones, 5);
   assert.equal(e.vigente_desde, '2026-11');
 });
+
+test('la línea se guarda como número con punto y los mercados con línea la exigen', async () => {
+  const db = await nueva();
+  const goles = (linea) => borrador(5, [sel('A', 1.8, { mercado: 'goles', seleccion: 'Más de', linea })]);
+  await assert.rejects(db.registrarApuesta(goles(''), AHORA), /línea/);
+  const { selecciones } = await db.registrarApuesta(goles('2,5'), AHORA);
+  assert.equal(selecciones[0].linea, '2.5');
+  assert.equal(selecciones[0].seleccion, 'Más de');
+  const { selecciones: s2 } = await db.registrarApuesta(borrador(5, [sel('B', 1.8, { mercado: 'córners', seleccion: 'Menos de', linea: '9.50' })]), '2026-10-15T21:00');
+  assert.equal(s2[0].linea, '9.5');
+});

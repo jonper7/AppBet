@@ -4,7 +4,7 @@ const HOJA_APUESTA = {
   cantidad: 1, // selecciones visibles (1 = simple; 2 o más = combinada)
   stakeManual: false, // true cuando el usuario escribe el stake; si no, se calcula solo
   validando: false, // se activa al pulsar Registrar: entonces se muestran también los campos faltantes
-  CODIGOS_CAMPO: ['casa', 'stake', 'fuente', 'estado_emocional', 'confianza', 'partido', 'liga', 'fecha_partido', 'mercado', 'seleccion', 'cuota', 'prob_propia', 'selecciones'],
+  CODIGOS_CAMPO: ['casa', 'stake', 'fuente', 'estado_emocional', 'confianza', 'partido', 'liga', 'fecha_partido', 'mercado', 'seleccion', 'cuota', 'prob_propia', 'linea', 'selecciones'],
 
   /** Para comparar sin importar mayúsculas, tildes ni espacios sobrantes. */
   plegar(t) {
@@ -78,9 +78,11 @@ const HOJA_APUESTA = {
         <label class="campo campo--completo"><span>Partido</span><input name="partido_${i}" placeholder="Local vs Visitante" autocomplete="off"></label>
         ${this.combo(`liga_${i}`, 'Liga', ligas)}
         <label class="campo"><span>Fecha del partido</span><input type="datetime-local" name="fecha_partido_${i}"></label>
-        <label class="campo"><span>Mercado</span><select name="mercado_${i}">${mercados}</select></label>
-        <label class="campo"><span>Línea <small class="campo__ayuda">(opcional)</small></span><input name="linea_${i}" placeholder="2.5" inputmode="decimal" autocomplete="off"></label>
-        <label class="campo campo--completo"><span>Selección</span><input name="seleccion_${i}" placeholder="Local, Más de 2.5, Ambos marcan…" autocomplete="off"></label>
+        <label class="campo campo--completo" data-mercado="${i}"><span>Mercado</span><select name="mercado_${i}">${mercados}</select></label>
+        <label class="campo" data-linea="${i}" hidden><span>Línea <small class="campo__ayuda">(número)</small></span><input name="linea_${i}" placeholder="2.5" inputmode="decimal" autocomplete="off"></label>
+        <label class="campo campo--completo" data-sel-lista="${i}"><span>Selección</span><select name="seleccion_${i}"></select></label>
+        <label class="campo campo--completo" data-sel-libre="${i}" hidden><span>Selección</span><input name="seleccion_libre_${i}" placeholder="Haaland marca, Jugador X más de 1 tiro…" autocomplete="off"></label>
+        <div class="campo__ayuda campo--completo" data-ayuda-sel="${i}" style="margin-top:-6px"></div>
         <label class="campo"><span>Cuota</span><input name="cuota_${i}" placeholder="1,85" inputmode="decimal" autocomplete="off"></label>
         <label class="campo"><span>Prob. propia % <small class="campo__ayuda">(opcional)</small></span><input name="prob_propia_${i}" placeholder="58" inputmode="decimal" autocomplete="off"></label>
         <label class="campo campo--completo"><span>Nota <small class="campo__ayuda">(opcional)</small></span><input name="nota_${i}" autocomplete="off"></label>
@@ -138,8 +140,28 @@ const HOJA_APUESTA = {
       </form>`, () => { this.form = null; });
     this.form = el.querySelector('#form-apuesta');
     this.enlazar(el);
+    this.form.querySelectorAll('[data-i]').forEach((b) => this.aplicarMercado(Number(b.dataset.i)));
     this.sincronizar();
     this.actualizar();
+  },
+
+  /** Adapta «Selección» y «Línea» al mercado elegido (desplegable de opciones, o texto libre en «otro»). */
+  aplicarMercado(i) {
+    const f = this.form;
+    const guia = CONFIG.MERCADOS_GUIA[f.elements[`mercado_${i}`].value] || { opciones: null, ayuda: '' };
+    const select = f.elements[`seleccion_${i}`];
+    if (guia.opciones) {
+      const actual = select.value;
+      select.innerHTML = `<option value="">Elige…</option>${guia.opciones.map((o) => `<option value="${APP.esc(o)}">${APP.esc(o)}</option>`).join('')}`;
+      if (guia.opciones.includes(actual)) select.value = actual;
+    }
+    f.querySelector(`[data-sel-lista="${i}"]`).hidden = !guia.opciones;
+    f.querySelector(`[data-sel-libre="${i}"]`).hidden = !!guia.opciones;
+    const pideLinea = !!guia.linea;
+    f.querySelector(`[data-linea="${i}"]`).hidden = !pideLinea;
+    f.querySelector(`[data-mercado="${i}"]`).classList.toggle('campo--completo', !pideLinea);
+    if (pideLinea) f.elements[`linea_${i}`].placeholder = guia.linea; else f.elements[`linea_${i}`].value = '';
+    f.querySelector(`[data-ayuda-sel="${i}"]`).textContent = guia.ayuda || '';
   },
 
   /** Muestra solo las selecciones en uso y los botones de añadir/quitar según el tipo. */
@@ -163,6 +185,7 @@ const HOJA_APUESTA = {
     const f = this.form;
     const i = this.cantidad;
     if (!f.querySelector(`[data-i="${i}"]`)) f.querySelector('#ap-selecciones').insertAdjacentHTML('beforeend', this.bloqueSeleccion(i, this.ligas));
+    this.aplicarMercado(i);
     this.cantidad += 1;
     this.sincronizar();
     this.actualizar();
@@ -177,6 +200,7 @@ const HOJA_APUESTA = {
     const f = this.form;
     const bloque = f.querySelector(`[data-i="${this.cantidad - 1}"]`);
     bloque.querySelectorAll('input, select').forEach((c) => { if (c.tagName === 'SELECT') c.selectedIndex = 0; else c.value = ''; });
+    this.aplicarMercado(this.cantidad - 1);
     this.cantidad -= 1;
     this.sincronizar();
     this.actualizar();
@@ -207,7 +231,9 @@ const HOJA_APUESTA = {
       if (e.key === 'Escape' && f.querySelector('.combo__lista:not([hidden])')) { e.stopPropagation(); this.cerrarListas(); }
     });
     el.querySelector('[data-stake-auto]').addEventListener('click', () => { this.stakeManual = false; this.actualizar(); });
-    f.addEventListener('change', () => {
+    f.addEventListener('change', (e) => {
+      const m = /^mercado_(\d+)$/.exec(e.target.name || '');
+      if (m) this.aplicarMercado(Number(m[1]));
       this.sincronizar();
       this.actualizar();
     });
@@ -252,6 +278,12 @@ const HOJA_APUESTA = {
     });
   },
 
+  /** La línea se muestra y se guarda como número con punto: «2,5» → «2.5». */
+  lineaTexto(t) {
+    const n = CALCULOS.leerNumero(t);
+    return Number.isFinite(n) ? String(n) : String(t || '').trim();
+  },
+
   /** Lee el formulario como borrador numérico. */
   leer() {
     const f = this.form;
@@ -262,7 +294,8 @@ const HOJA_APUESTA = {
     for (let i = 0; i < cantidad; i += 1) {
       selecciones.push({
         partido: g(`partido_${i}`), liga: g(`liga_${i}`), fecha_partido: g(`fecha_partido_${i}`), mercado: g(`mercado_${i}`),
-        seleccion: g(`seleccion_${i}`), linea: g(`linea_${i}`), cuota: num(`cuota_${i}`), prob_propia: g(`prob_propia_${i}`), nota: g(`nota_${i}`),
+        seleccion: g(`mercado_${i}`) === 'otro' ? g(`seleccion_libre_${i}`) : g(`seleccion_${i}`),
+        linea: (CONFIG.MERCADOS_GUIA[g(`mercado_${i}`)] || {}).linea ? this.lineaTexto(g(`linea_${i}`)) : '', cuota: num(`cuota_${i}`), prob_propia: g(`prob_propia_${i}`), nota: g(`nota_${i}`),
       });
     }
     return {

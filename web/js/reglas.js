@@ -17,6 +17,7 @@
     perdidas_seguidas_pausa: 2,
   });
 
+  const MERCADOS_CON_LINEA = ['goles', 'córners', 'tiros']; // en estos mercados «Más de / Menos de» necesita un número
   const LIMITE_SELECCIONES = 10; // tope absoluto de selecciones en una apuesta, aunque se levante la regla
   const CUOTA_MINIMA_VALIDA = 1.01; // la cuota debe ser estrictamente mayor
   const UMBRAL_ALERTA = 0.75;
@@ -113,6 +114,10 @@
       if (!s.fecha_partido) err('fecha_partido', `Selección ${n}: indica la fecha del partido.`);
       if (!s.mercado) err('mercado', `Selección ${n}: indica el mercado.`);
       if (!String(s.seleccion || '').trim()) err('seleccion', `Selección ${n}: indica qué eliges.`);
+      if (MERCADOS_CON_LINEA.includes(s.mercado)) {
+        const l = C.leerNumero(s.linea);
+        if (!(Number.isFinite(l) && l > 0)) err('linea', `Selección ${n}: indica la línea del mercado «${s.mercado}» (por ejemplo 2.5).`);
+      }
       if (!(Number.isFinite(s.cuota) && s.cuota > CUOTA_MINIMA_VALIDA)) {
         err('cuota', `Selección ${n}: la cuota debe ser mayor que ${num2(CUOTA_MINIMA_VALIDA)}.`);
       }
@@ -259,7 +264,7 @@
   }
 
   return {
-    PARAMETROS_POR_DEFECTO, LIMITE_SELECCIONES, CUOTA_MINIMA_VALIDA, mesDe, diaDe, mesSiguiente, configVigente,
+    PARAMETROS_POR_DEFECTO, LIMITE_SELECCIONES, MERCADOS_CON_LINEA, CUOTA_MINIMA_VALIDA, mesDe, diaDe, mesSiguiente, configVigente,
     validarConfig, overrideActivo, situacion, validarCampos, evaluarApuesta, estadoReglas,
   };
 });

@@ -266,3 +266,18 @@ test('semáforo: el límite de selecciones levantado deja la regla en ámbar', (
   const item = R.estadoReglas(c).items.find((i) => i.id === 'combinada');
   assert.equal(item.nivel, 'ambar');
 });
+
+test('goles, córners y tiros exigen la línea; el resto de mercados no', () => {
+  const con = (mercado, linea) => borrador(5, [sel('A vs B', 1.8, { mercado, seleccion: 'Más de', linea })]);
+  ['goles', 'córners', 'tiros'].forEach((m) => {
+    const sin = R.evaluarApuesta(con(m, ''), ctx());
+    assert.ok(codigos(sin.errores).includes('linea'), `${m} sin línea debería fallar`);
+    assert.equal(R.evaluarApuesta(con(m, '2.5'), ctx()).ok, true);
+    assert.equal(R.evaluarApuesta(con(m, '2,5'), ctx()).ok, true);
+    assert.ok(codigos(R.evaluarApuesta(con(m, '0'), ctx()).errores).includes('linea'));
+    assert.ok(codigos(R.evaluarApuesta(con(m, 'dos'), ctx()).errores).includes('linea'));
+  });
+  ['1X2', 'BTTS', 'doble oportunidad', 'otro'].forEach((m) => {
+    assert.equal(R.evaluarApuesta(borrador(5, [sel('A vs B', 1.8, { mercado: m, seleccion: 'Sí', linea: '' })]), ctx()).ok, true);
+  });
+});
